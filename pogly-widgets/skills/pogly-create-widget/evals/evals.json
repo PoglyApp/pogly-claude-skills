@@ -1,0 +1,23 @@
+{
+  "skill_name": "pogly-create-widget",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "/pogly-create-widget please make me a widget which shows the weather based on the locale that I choose",
+      "expected_output": "A valid single-line import JSON in a ```json block using only open-meteo endpoints (geocoding + forecast), a location variable, wall-clock-aligned refresh, the static frame rendered with placeholders before any fetch resolves, no Math.random/storage/dialogs, followed by a variables table marking which are live, plus a note on refresh cadence.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/pogly-create-widget a death counter for my elden ring runs, I want to bump it mid-stream with a hotkey and the count needs to survive me closing the overlay",
+      "expected_output": "Uses a type 10 counter variable (live, variableSteps) for persistence via Pogly state, NOT localStorage; defines onLiveVariableUpdate; notes explain hotkey binding and that the count persists in the variable.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "/pogly-create-widget sub goal bar for twitch that fills as people sub, with a button to test the fill animation",
+      "expected_output": "chatIntegration with chatEvents [\"sub\"] and onTwitchSub that does not double-count gift bombs (ignores subGift when part of subMysteryGift, or counts only one side), a type 6 button with variableLive true handled in onLiveVariableUpdate, placeholder chatChannel called out in Notes along with the Owner Settings Twitch platform requirement.",
+      "files": []
+    }
+  ]
+}

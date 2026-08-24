@@ -1,0 +1,13 @@
+{
+  "name": "pogly-widgets",
+  "description": "Pogly widget creation for Claude: turn a natural-language request into a working, validated widget import JSON for your stream overlay.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Pogly",
+    "url": "https://pogly.gg"
+  },
+  "homepage": "https://docs.pogly.gg",
+  "repository": "https://github.com/PoglyApp/pogly-claude-skills",
+  "license": "Apache-2.0",
+  "keywords": ["pogly", "widget", "overlay", "obs", "twitch", "streaming"]
+}

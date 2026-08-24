@@ -1,0 +1,14 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "pogly",
+  "owner": {
+    "name": "Pogly"
+  },
+  "plugins": [
+    {
+      "name": "pogly-widgets",
+      "source": "./pogly-widgets",
+      "description": "Create working Pogly overlay widgets from natural-language requests: /pogly-create-widget outputs paste-ready widget import JSON with a variables guide."
+    }
+  ]
+}
