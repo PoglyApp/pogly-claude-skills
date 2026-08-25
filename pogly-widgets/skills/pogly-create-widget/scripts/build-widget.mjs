@@ -252,8 +252,15 @@ const CHAT_EVENTS = {
 };
 const definedCallbacks = new Set([...script.matchAll(/function\s+(onTwitch\w+|onStreamerBot\w+)\b/g)].map((m) => m[1]));
 if (meta.chatIntegration === true) {
-  if (!meta.chatChannel || typeof meta.chatChannel !== "string") errors.push("chatIntegration requires chatChannel (lowercase Twitch login, no #)");
-  else if (meta.chatChannel !== meta.chatChannel.toLowerCase() || meta.chatChannel.startsWith("#")) errors.push("chatChannel must be lowercase without a # prefix");
+  // omitted chatChannel = the host follows the overlay's configured channel (the normal case)
+  if (meta.chatChannel === "") { delete meta.chatChannel; notes.push("empty chatChannel removed: the host follows the overlay's configured channel"); }
+  if (meta.chatChannel !== undefined) {
+    if (typeof meta.chatChannel !== "string" || meta.chatChannel !== meta.chatChannel.toLowerCase() || meta.chatChannel.startsWith("#")) {
+      errors.push("chatChannel must be a lowercase Twitch login without a # prefix");
+    } else {
+      warnings.push(`chatChannel "${meta.chatChannel}" pins the widget to that specific channel; omit it to follow the overlay's configured channel`);
+    }
+  }
   const events = meta.chatEvents === undefined ? ["message"] : meta.chatEvents;
   if (!Array.isArray(events)) errors.push("chatEvents must be an array");
   else {

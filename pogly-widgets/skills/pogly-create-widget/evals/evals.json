@@ -16,7 +16,7 @@
     {
       "id": 3,
       "prompt": "/pogly-create-widget sub goal bar for twitch that fills as people sub, with a button to test the fill animation",
-      "expected_output": "chatIntegration with chatEvents [\"sub\"] and onTwitchSub that does not double-count gift bombs (ignores subGift when part of subMysteryGift, or counts only one side), a type 6 button with variableLive true handled in onLiveVariableUpdate, placeholder chatChannel called out in Notes along with the Owner Settings Twitch platform requirement.",
+      "expected_output": "chatIntegration with chatEvents [\"sub\"] and onTwitchSub that does not double-count gift bombs (ignores subGift when part of subMysteryGift, or counts only one side), a type 6 button with variableLive true handled in onLiveVariableUpdate, NO chatChannel field (the host follows the overlay's configured channel), Owner Settings Twitch platform requirement in Notes.",
       "files": []
     }
   ]

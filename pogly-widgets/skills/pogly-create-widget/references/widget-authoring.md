@@ -157,14 +157,15 @@ Top-level import JSON fields:
 
 ```json
 "chatIntegration": true,
-"chatChannel": "channelname",
 "chatEvents": ["message"]
 ```
 
-`chatChannel` is the lowercase Twitch login, no `#`. If the user did not name a channel, use a
-clearly fake placeholder like `"yourchannel"` and tell them to replace it. `chatEvents` picks
-which events get wired; omitting it means message-only, `[]` means none. Only request events
-the widget uses. The compiler injects the listeners; you only define the callbacks:
+Omit `chatChannel` entirely: the host then follows the channel from the overlay's stream
+config automatically, which is what nearly every widget wants. Only set it (lowercase Twitch
+login, no `#`) when the user explicitly wants the widget watching a specific other channel,
+and say so in the reply's Notes. `chatEvents` picks which events get wired; omitting it means
+message-only, `[]` means none. Only request events the widget uses. The compiler injects the
+listeners; you only define the callbacks:
 
 | Event key | Callback | Payload highlights |
 | --- | --- | --- |

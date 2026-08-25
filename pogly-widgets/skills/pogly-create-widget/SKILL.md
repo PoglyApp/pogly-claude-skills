@@ -17,8 +17,9 @@ because the user may not read code at all. Configurability lives in variables, n
 
 Prefer sensible defaults over questions: pick dimensions, styling and behaviour yourself and
 state the choices in the reply. Only ask when a wrong guess makes the widget useless (which
-of two contradictory behaviours they want). Missing user-specific values (a Twitch channel,
-a goal number) are never a reason to ask: make them variables with placeholder defaults.
+of two contradictory behaviours they want). Missing user-specific values (a goal number, a
+label) are never a reason to ask: make them variables with placeholder defaults. Chat
+integration needs no channel at all; the host follows the overlay's configured channel.
 
 ## Workflow
 
@@ -93,9 +94,9 @@ and notes only when there is something the user must do.
 
 ## Notes
 
-<only what the user must know or do: replace a placeholder channel, set the streaming
-platform to Twitch in Owner Settings for chat integration, run Streamer.bot on the
-streaming PC, how often external data refreshes, which hotkeys are worth binding>
+<only what the user must know or do: set the streaming platform to Twitch in Owner
+Settings for chat integration, run Streamer.bot on the streaming PC, how often external
+data refreshes, which hotkeys are worth binding>
 ````
 
 In the Live column always use one of: `yes, updates instantly` (live), `always live`
