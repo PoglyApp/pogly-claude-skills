@@ -1,6 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "pogly",
+  "description": "Official Claude plugins for Pogly, the collaborative stream overlay: create working overlay widgets from plain-language requests.",
   "owner": {
     "name": "Pogly"
   },
