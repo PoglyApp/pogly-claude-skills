@@ -111,6 +111,15 @@ function onLiveVariableUpdate(name, value) {
 - `{widget_width}` / `{widget_height}`: the placed element's size in pixels. Prefer these over
   hardcoded sizes when the layout needs real pixel numbers (e.g. canvas sizing); otherwise use
   responsive CSS (vw/vh/vmin against the iframe viewport, flex, clamp()).
+- `{channel_name}`: the channel name from the overlay's Owner Settings.
+- `{platform}`: the streaming platform from Owner Settings, lowercase (`"twitch"`, `"youtube"`,
+  `"kick"`).
+
+`{channel_name}` and `{platform}` substitute as empty strings when no instance config is
+loaded (marketplace and review previews), so anything rendering them needs a sensible empty
+state; like any string substitution they must be quoted in JS. Use them instead of asking for
+a channel-name or platform variable when the widget just displays or branches on the user's
+own stream settings. They are plain compile-time text, never live.
 
 You cannot declare a variable with any of these names.
 
@@ -183,6 +192,46 @@ only while a sub goal runs (`goal.current` / `goal.target`).
 
 Requires the overlay's streaming platform to be set to Twitch in Owner Settings; mention that
 in the reply when you use this integration.
+
+### Kick chat (host-provided, same architecture as Twitch chat)
+
+Top-level import JSON fields:
+
+```json
+"kickIntegration": true,
+"kickEvents": ["message"]
+```
+
+Omit `kickChannel` entirely: the host then follows the channel from the overlay's stream
+config. Only set it (lowercase Kick channel slug, no `#`) when the user explicitly wants the
+widget watching a specific other channel, and say so in the reply's Notes. `kickEvents` picks
+which events get wired; omitting it means message-only, `[]` means none. Only request events
+the widget uses. The compiler injects the listeners; you only define the callbacks:
+
+| Event key | Callback | Payload highlights |
+| --- | --- | --- |
+| `message` | `onKickMessage(data)` | `username, message, color, badges, userId, isMod, isSubscriber, messageId` |
+| `sub` | `onKickSub(data)` | `username, months` |
+| `giftedSubs` | `onKickGiftedSubs(data)` | `username` (the gifter), `giftedUsernames, giftCount` |
+| `host` | `onKickHost(data)` | `username, viewers, message` |
+| `messageDeleted` | `onKickMessageDeleted(data)` | `messageId` |
+| `userBanned` | `onKickUserBanned(data)` | `username, bannedBy, expiresAt` (`null` = permanent ban, ISO timestamp = timeout) |
+| `userUnbanned` | `onKickUserUnbanned(data)` | `username, unbannedBy` |
+| `pinnedMessageCreated` | `onKickPinnedMessageCreated(data)` | `username, message, duration` |
+| `pinnedMessageDeleted` | `onKickPinnedMessageDeleted(data)` | only `channel` and `raw` |
+| `pollUpdate` | `onKickPollUpdate(data)` | `title, options` (`[{ id, label, votes }]`), `duration, remaining` |
+| `pollDelete` | `onKickPollDelete(data)` | only `channel` and `raw` |
+
+Every payload also carries `channel` and `raw` (the untouched Pusher event data). Differences
+from Twitch to design around: emotes arrive embedded in `message` as `[emote:id:name]` tags;
+`badges` is an array of `{ type, text, count? }` objects, not a name->version record;
+`username` is always the acting user (sender, gifter, host); numeric fields the event may omit
+arrive as `null`.
+
+Requires the overlay's streaming platform to be set to Kick in Owner Settings; mention that in
+the reply. A widget may enable both `chatIntegration` and `kickIntegration`: only the one
+matching the configured platform receives events, so a works-on-either-platform widget defines
+both callback sets and shares the rendering code between them.
 
 ### Streamer.bot
 

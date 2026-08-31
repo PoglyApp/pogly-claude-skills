@@ -7,6 +7,7 @@
 //
 // meta.json: { widgetName, widgetWidth, widgetHeight, variables: [...],
 //              chatIntegration?, chatChannel?, chatEvents?,
+//              kickIntegration?, kickChannel?, kickEvents?,
 //              streamerBotIntegration?, streamerBotHost?, streamerBotPort?,
 //              streamerBotAuthEnabled?, streamerBotAuthKey? }
 // Variable objects use the same properties as the export format (variableName, variableType, ...).
@@ -53,6 +54,7 @@ const allCode = { header, body, style, script };
 const KNOWN_META = new Set([
   "widgetName", "widgetWidth", "widgetHeight", "variables",
   "chatIntegration", "chatChannel", "chatEvents",
+  "kickIntegration", "kickChannel", "kickEvents",
   "streamerBotIntegration", "streamerBotHost", "streamerBotPort",
   "streamerBotAuthEnabled", "streamerBotAuthKey",
 ]);
@@ -66,7 +68,7 @@ for (const k of ["widgetWidth", "widgetHeight"]) {
 const variables = Array.isArray(meta.variables) ? meta.variables : (errors.push("variables must be an array"), []);
 
 // ---- variables ----
-const RESERVED = new Set(["is_overlay", "widget_width", "widget_height"]);
+const RESERVED = new Set(["is_overlay", "widget_width", "widget_height", "channel_name", "platform"]);
 const LIVE_OK = new Set([1, 2, 4, 7, 8, 9, 10, 11, 12]);
 const DATE_FORMATS = new Set(["raw", "iso", "unix", "unix_ms", "date", "time", "locale"]);
 const LIST_FORMATS = new Set(["json", "csv", "lines"]);
@@ -246,36 +248,57 @@ for (const p of placeholders) {
 }
 
 // ---- integrations ----
-const CHAT_EVENTS = {
-  message: "onTwitchMessage", sub: "onTwitchSub", raid: "onTwitchRaid", unraid: "onTwitchUnraid",
-  badgeUpgrade: "onTwitchBadgeUpgrade", viewerMilestone: "onTwitchViewerMilestone", sharedChatNotice: "onTwitchSharedChatNotice",
-};
-const definedCallbacks = new Set([...script.matchAll(/function\s+(onTwitch\w+|onStreamerBot\w+)\b/g)].map((m) => m[1]));
-if (meta.chatIntegration === true) {
-  // omitted chatChannel = the host follows the overlay's configured channel (the normal case)
-  if (meta.chatChannel === "") { delete meta.chatChannel; notes.push("empty chatChannel removed: the host follows the overlay's configured channel"); }
-  if (meta.chatChannel !== undefined) {
-    if (typeof meta.chatChannel !== "string" || meta.chatChannel !== meta.chatChannel.toLowerCase() || meta.chatChannel.startsWith("#")) {
-      errors.push("chatChannel must be a lowercase Twitch login without a # prefix");
-    } else {
-      warnings.push(`chatChannel "${meta.chatChannel}" pins the widget to that specific channel; omit it to follow the overlay's configured channel`);
+// Twitch and Kick chat share the same field/callback architecture, so one loop validates both.
+const CHAT_PLATFORMS = [
+  {
+    label: "chat", prefix: "onTwitch",
+    enabledKey: "chatIntegration", channelKey: "chatChannel", eventsKey: "chatEvents",
+    channelRule: "a lowercase Twitch login without a # prefix",
+    events: {
+      message: "onTwitchMessage", sub: "onTwitchSub", raid: "onTwitchRaid", unraid: "onTwitchUnraid",
+      badgeUpgrade: "onTwitchBadgeUpgrade", viewerMilestone: "onTwitchViewerMilestone", sharedChatNotice: "onTwitchSharedChatNotice",
+    },
+  },
+  {
+    label: "kick", prefix: "onKick",
+    enabledKey: "kickIntegration", channelKey: "kickChannel", eventsKey: "kickEvents",
+    channelRule: "a lowercase Kick channel slug without a # prefix",
+    events: {
+      message: "onKickMessage", sub: "onKickSub", giftedSubs: "onKickGiftedSubs", host: "onKickHost",
+      messageDeleted: "onKickMessageDeleted", userBanned: "onKickUserBanned", userUnbanned: "onKickUserUnbanned",
+      pinnedMessageCreated: "onKickPinnedMessageCreated", pinnedMessageDeleted: "onKickPinnedMessageDeleted",
+      pollUpdate: "onKickPollUpdate", pollDelete: "onKickPollDelete",
+    },
+  },
+];
+const definedCallbacks = new Set([...script.matchAll(/function\s+(onTwitch\w+|onKick\w+|onStreamerBot\w+)\b/g)].map((m) => m[1]));
+for (const p of CHAT_PLATFORMS) {
+  if (meta[p.enabledKey] === true) {
+    // omitted channel = the host follows the overlay's configured channel (the normal case)
+    if (meta[p.channelKey] === "") { delete meta[p.channelKey]; notes.push(`empty ${p.channelKey} removed: the host follows the overlay's configured channel`); }
+    if (meta[p.channelKey] !== undefined) {
+      if (typeof meta[p.channelKey] !== "string" || meta[p.channelKey] !== meta[p.channelKey].toLowerCase() || meta[p.channelKey].startsWith("#")) {
+        errors.push(`${p.channelKey} must be ${p.channelRule}`);
+      } else {
+        warnings.push(`${p.channelKey} "${meta[p.channelKey]}" pins the widget to that specific channel; omit it to follow the overlay's configured channel`);
+      }
     }
-  }
-  const events = meta.chatEvents === undefined ? ["message"] : meta.chatEvents;
-  if (!Array.isArray(events)) errors.push("chatEvents must be an array");
-  else {
-    for (const ev of events) {
-      if (!CHAT_EVENTS[ev]) { errors.push(`unknown chat event "${ev}"`); continue; }
-      if (!definedCallbacks.has(CHAT_EVENTS[ev])) errors.push(`chat event "${ev}" selected but script does not define ${CHAT_EVENTS[ev]}`);
+    const events = meta[p.eventsKey] === undefined ? ["message"] : meta[p.eventsKey];
+    if (!Array.isArray(events)) errors.push(`${p.eventsKey} must be an array`);
+    else {
+      for (const ev of events) {
+        if (!p.events[ev]) { errors.push(`unknown ${p.label} event "${ev}"`); continue; }
+        if (!definedCallbacks.has(p.events[ev])) errors.push(`${p.label} event "${ev}" selected but script does not define ${p.events[ev]}`);
+      }
+      for (const cb of definedCallbacks) {
+        const ev = Object.entries(p.events).find(([, c]) => c === cb)?.[0];
+        if (ev && !events.includes(ev)) warnings.push(`${cb} defined but event "${ev}" is not in ${p.eventsKey}; it will never fire`);
+      }
     }
+  } else {
     for (const cb of definedCallbacks) {
-      const ev = Object.entries(CHAT_EVENTS).find(([, c]) => c === cb)?.[0];
-      if (ev && !events.includes(ev)) warnings.push(`${cb} defined but event "${ev}" is not in chatEvents; it will never fire`);
+      if (cb.startsWith(p.prefix)) errors.push(`${cb} defined but ${p.enabledKey} is not enabled; it will never fire`);
     }
-  }
-} else {
-  for (const cb of definedCallbacks) {
-    if (cb.startsWith("onTwitch")) errors.push(`${cb} defined but chatIntegration is not enabled; it will never fire`);
   }
 }
 if (meta.streamerBotIntegration === true) {
@@ -300,7 +323,7 @@ const out = {
   styleTag: style,
   scriptTag: script,
 };
-for (const k of ["chatIntegration", "chatChannel", "chatEvents", "streamerBotIntegration", "streamerBotHost", "streamerBotPort", "streamerBotAuthEnabled", "streamerBotAuthKey"]) {
+for (const k of ["chatIntegration", "chatChannel", "chatEvents", "kickIntegration", "kickChannel", "kickEvents", "streamerBotIntegration", "streamerBotHost", "streamerBotPort", "streamerBotAuthEnabled", "streamerBotAuthKey"]) {
   if (meta[k] !== undefined) out[k] = meta[k];
 }
 out.variables = variables.map((v) => {

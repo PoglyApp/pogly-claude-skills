@@ -94,9 +94,9 @@ and notes only when there is something the user must do.
 
 ## Notes
 
-<only what the user must know or do: set the streaming platform to Twitch in Owner
-Settings for chat integration, run Streamer.bot on the streaming PC, how often external
-data refreshes, which hotkeys are worth binding>
+<only what the user must know or do: set the streaming platform to Twitch (or Kick) in
+Owner Settings for chat integration, run Streamer.bot on the streaming PC, how often
+external data refreshes, which hotkeys are worth binding>
 ````
 
 In the Live column always use one of: `yes, updates instantly` (live), `always live`
