@@ -1,6 +1,6 @@
 ---
 name: pogly-create-widget
-description: Create a working Pogly widget from a natural-language request and deliver its paste-ready import JSON in a copyable code block, plus a short explanation of every variable and which ones are live or toggles. Use whenever someone asks to make, build, or generate a widget, or any visual for their stream overlay (a counter, timer, clock, alert, goal bar, label, poll, chat-reactive display, weather panel), even if they never say the word "widget". Not for reviewing or vetting an existing widget's code or submission, only for creating and modifying widgets.
+description: Create a working Pogly widget from a natural-language request and deliver its paste-ready import JSON in a copyable code block (or a .json file when it is large), plus a short explanation of every variable and which ones are live or toggles. Use whenever someone asks to make, build, or generate a widget, or any visual for their stream overlay (a counter, timer, clock, alert, goal bar, label, poll, chat-reactive display, weather panel), even if they never say the word "widget". Not for reviewing or vetting an existing widget's code or submission, only for creating and modifying widgets.
 argument-hint: <what the widget should do>
 ---
 
@@ -69,18 +69,33 @@ integration needs no channel at all; the host follows the overlay's configured c
    rules. The validator is a net, not a review: it cannot tell you that a fetch cadence
    diverges between viewers or that an animation resets when it should not.
 
-6. Read `widget.json` and reply in the output format below, pasting its contents verbatim.
+6. Reply in the output format below. The build output prints the character count of
+   `widget.json`; that count picks the delivery mode (see Output format).
 
 ## Output format
 
-Keep the reply to exactly this shape: one intro line, the JSON block, the variables table,
-and notes only when there is something the user must do.
+Keep the reply to exactly this shape: one intro line, the import JSON (delivered by size,
+below), the variables table, and notes only when there is something the user must do.
+
+The import JSON is always delivered whole: the one single-line string `widget.json` holds.
+Never split it into header/body/css/js section blocks, never truncate it, never spread it
+across multiple code blocks. Delivery mode by the character count the build script printed:
+
+- **20,000 characters or less**: paste the contents of `widget.json` verbatim in the
+  ```json block of the template.
+- **Over 20,000 characters**: do not paste it into the chat; a block that large lags or
+  breaks the chat rendering and the user cannot copy it cleanly. Instead copy `widget.json`
+  into the user's current working directory (never leave it only in a temp/scratch dir) as
+  `<widget-name-in-kebab-case>.widget.json`, and replace the ```json block with the file's
+  path plus one line telling the user to open the file and copy its entire contents into the
+  import tab. On a platform that attaches files in chat, also attach it.
 
 ````markdown
 <one sentence: what the widget does, its default size, and any notable design choice>
 
 ```json
-<the single-line contents of widget.json, verbatim>
+<the single-line contents of widget.json, verbatim; over 20,000 characters this whole block
+becomes the file path line instead, as described above>
 ```
 
 ## Variables
@@ -103,9 +118,11 @@ In the Live column always use one of: `yes, updates instantly` (live), `always l
 (buttons), `restarts widget` (toggles), `restarts on change` (non-live). That column is the
 user's mental model of what interrupts their stream visuals; keep it honest.
 
-If the user reports the import failing, give them the four sections separately as plain
-code blocks (inner code only, straight from the section files) so they can paste them into
-the html / css / js / header tabs by hand.
+If the user reports the import failing or the JSON being hard to copy, the paste was most
+likely mangled or clipped by the chat rendering: deliver the same `widget.json` as a file
+(the over-20,000 path above, regardless of size). Never fall back to giving the four
+sections as separate header/body/css/js code blocks; the full import JSON is the only
+deliverable format.
 
 ## Refusals
 

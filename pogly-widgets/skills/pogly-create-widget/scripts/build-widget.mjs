@@ -334,6 +334,8 @@ out.variables = variables.map((v) => {
 
 const json = JSON.stringify(out);
 if (json.length > 200000) warnings.push(`import JSON is ${json.length} chars; the cap is 200,000`);
+// Chat rendering breaks on very large pasted blocks; SKILL.md switches to file delivery there.
+if (json.length > 20000) notes.push(`import JSON is ${json.length} chars: too large to paste into chat, deliver widget.json as a file (SKILL.md output rules)`);
 
 for (const e of errors) console.log(`ERROR   ${e}`);
 for (const w of warnings) console.log(`WARNING ${w}`);
