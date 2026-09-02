@@ -195,6 +195,12 @@ scan(/addEventListener\s*\(\s*["'`]message["'`]/, "do not add your own message l
 scan(/\.(innerHTML|outerHTML)\s*[+]?=[^;\n]*\{[A-Za-z_]/, "variable value flows into innerHTML (unsanitised)", ["script"]);
 scan(/insertAdjacentHTML\s*\([^)]*\{[A-Za-z_]/, "variable value flows into insertAdjacentHTML (unsanitised)", ["script"]);
 
+// The broadcaster is never a mod on either platform (no mod tag / no moderator badge), so a
+// widget gating controls on isMod alone silently ignores the streamer's own commands.
+if (/\.isMod\b/.test(script) && !/isBroadcaster|["'`]broadcaster["'`]/.test(script)) {
+  warnings.push("script: gates on isMod with no isBroadcaster check; the broadcaster is not a mod on Twitch or Kick, use data.isBroadcaster || data.isMod (both platforms carry it)");
+}
+
 if (/Math\.random\s*\(/.test(script)) {
   (script.includes("justinfan") ? notes : warnings).push(
     "script: Math.random() found; acceptable only for an IRC justinfan nick, never for anything that renders"

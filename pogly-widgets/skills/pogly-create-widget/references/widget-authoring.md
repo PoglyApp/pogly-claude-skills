@@ -178,7 +178,7 @@ listeners; you only define the callbacks:
 
 | Event key | Callback | Payload highlights |
 | --- | --- | --- |
-| `message` | `onTwitchMessage(data)` | `username, message, isAction, color, badges, userId, isMod, isSubscriber` |
+| `message` | `onTwitchMessage(data)` | `username, message, isAction, color, badges, userId, isBroadcaster, isMod, isVip, isSubscriber` |
 | `sub` | `onTwitchSub(data)` | `subType, username, tier, isPrime, message, cumulativeMonths, streakMonths, recipient, giftCount, goal` |
 | `raid` | `onTwitchRaid(data)` | `username, viewers` |
 | `unraid` | `onTwitchUnraid(data)` | `channel` |
@@ -189,6 +189,23 @@ listeners; you only define the callbacks:
 Every payload also carries `channel` and `raw`. A gift bomb emits ONE `subMysteryGift` plus one
 `subGift` per recipient, so count either the bomb or the gifts, never both. `goal` is present
 only while a sub goal runs (`goal.current` / `goal.target`).
+
+**Sender roles (Twitch).** Messages carry four role booleans, `isBroadcaster`, `isMod`,
+`isVip`, `isSubscriber` (Kick messages carry the same four, so shared code can treat both
+platforms alike). They come straight from tmi.js, which derives them the way Twitch defines
+them: `isBroadcaster` is the broadcaster badge (or room id = user id), `isMod` a moderator or
+lead_moderator badge or the mod tag, `isVip` the vip badge or tag, `isSubscriber` a subscriber
+or founder badge. The broadcaster is NOT a mod on Twitch, so never gate on `isMod` alone:
+`data.isBroadcaster || data.isMod` is the "streamer and mods" check. Rarer flags
+(`isFounder`, `isLeadMod`, `isBot`) live on `data.raw.user`; `data.badges` is the badge set as a
+plain `{ name: version }` object.
+
+```js
+function onTwitchMessage(data) {
+  var canControl = data.isBroadcaster || data.isMod; // add data.isVip when VIPs may control it
+  handleCommand(data.username, data.message, canControl);
+}
+```
 
 Requires the overlay's streaming platform to be set to Twitch in Owner Settings; mention that
 in the reply when you use this integration.
@@ -210,7 +227,7 @@ the widget uses. The compiler injects the listeners; you only define the callbac
 
 | Event key | Callback | Payload highlights |
 | --- | --- | --- |
-| `message` | `onKickMessage(data)` | `username, message, color, badges, userId, isMod, isSubscriber, messageId` |
+| `message` | `onKickMessage(data)` | `username, message, color, badges, userId, isBroadcaster, isMod, isVip, isSubscriber, messageId` |
 | `sub` | `onKickSub(data)` | `username, months` |
 | `giftedSubs` | `onKickGiftedSubs(data)` | `username` (the gifter), `giftedUsernames, giftCount` |
 | `host` | `onKickHost(data)` | `username, viewers, message` |
@@ -228,10 +245,30 @@ from Twitch to design around: emotes arrive embedded in `message` as `[emote:id:
 `username` is always the acting user (sender, gifter, host); numeric fields the event may omit
 arrive as `null`.
 
+**Sender roles (Kick).** Kick has no role flags of its own; roles exist only as badges on the
+sender's identity, and the host derives the same four booleans as Twitch from them:
+`isBroadcaster` (`broadcaster` badge), `isMod` (`moderator`), `isVip` (`vip`), `isSubscriber`
+(`subscriber` or `founder`). As on Twitch the broadcaster is never `isMod`, so use
+`data.isBroadcaster || data.isMod`. For anything else read `data.badges` (the
+`[{ type, text, count? }]` array) and match on `type`, the stable identifier, never on `text`,
+the display label. Badge types seen in the wild: `broadcaster`, `moderator`, `vip`, `og`,
+`founder`, `subscriber` (`count` = months), `sub_gifter` (`count` = gifts), `verified`,
+`staff`. Global cosmetic badges (level, seasonal) live only in `raw.sender.identity.badges_v2`
+and grant nothing.
+
+```js
+function onKickMessage(data) {
+  var canControl = data.isBroadcaster || data.isMod;
+  handleCommand(data.username, data.message, canControl);
+}
+```
+
 Requires the overlay's streaming platform to be set to Kick in Owner Settings; mention that in
 the reply. A widget may enable both `chatIntegration` and `kickIntegration`: only the one
 matching the configured platform receives events, so a works-on-either-platform widget defines
-both callback sets and shares the rendering code between them.
+both callback sets and shares the rendering code between them. The four role booleans have the
+same names on both platforms, so a shared handler can take `data` from either callback; just
+never gate on `isMod` alone.
 
 ### Streamer.bot
 
