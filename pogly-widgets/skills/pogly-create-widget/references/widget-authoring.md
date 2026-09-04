@@ -68,8 +68,9 @@ Consequences of literal substitution:
 | multiselect | 12 | per `variableListFormat` | checkbox list; choices in `variableOptions`, ticked subset in `variableValue` as a JSON array string; selection always re-sorted to the authored option order; mark live |
 
 The counter's value persists in Pogly's own state and syncs to every client, so a counter
-variable is the right way to make a number survive restarts and streams. Never use
-localStorage for persistence.
+variable is the right way to make a number survive restarts and streams (a list variable does
+the same for text entries). Browser storage is not a substitute: it is per browser, so it is
+allowed only under the acknowledged-storage rule in Determinism.
 
 Any variable may carry `variableDescription`: a tooltip shown next to its control, never
 substituted into code. Write one for every variable whose name and default do not fully
@@ -148,8 +149,44 @@ Every viewer must render the same thing at the same moment.
   overlay element that stays fully blank until a fetch succeeds reads as broken.
 - WebSockets to public streaming chat (Twitch IRC `wss://irc-ws.chat.twitch.tv`) are safe:
   every viewer receives the same stream.
-- No localStorage / sessionStorage / cookies, ever. Per-browser state breaks determinism, and
-  the iframe is same-origin with the host app, so touching storage is also a security finding.
+- Browser storage (`localStorage`/`sessionStorage`) is per browser: the overlay, each editor
+  tab and every viewer keep their own copy, so a stored value is not shared state and breaks
+  determinism. Default: do not use it; persist with counter or list variables. It is allowed
+  ONLY when the user explicitly acknowledged that caveat and asked to proceed anyway (rules
+  below). Cookies are never allowed.
+
+### Browser storage (acknowledged use only)
+
+The iframe is same-origin with the host app, so `localStorage` inside a widget IS the
+installer's storage: the host's session tokens and settings live there, and so do every other
+widget's keys. Storage is therefore a soft rule with hard edges:
+
+- Use it only when the user, in their own words, acknowledged that stored state lives per
+  browser and can differ between the overlay and each editor, and asked to proceed anyway. A
+  request that merely says "remember" or "persist" is not that: deliver counter/list variables
+  and mention storage is available if they accept the caveat.
+- Own keys only: every key the widget reads or removes must be a string literal that the same
+  script also writes with `setItem`. Never read a key the widget does not set.
+- Access storage only through `getItem`/`setItem`/`removeItem` with literal keys. Never
+  enumerate or wipe it: no `key()`, `length`, `clear()`, `Object.keys/entries/values`,
+  `for...in`, `JSON.stringify(localStorage)`, spread, or property/bracket access.
+- Prefix keys with the widget's name (`deathCounter_best`) so two widgets on the same overlay
+  never share a key, and never use a name that could be the host's (`stdb*`, `oidc.*`,
+  `pogly*`, `settings`, `token`-like names). The build script rejects those.
+- Never send a stored value anywhere (fetch, WebSocket, URL, image src).
+- Put `"storageAcknowledged": true` in `meta.json`; it is a build-time flag (stripped from the
+  import JSON) that tells `build-widget.mjs` the acknowledgement happened. The reply's Notes
+  must restate the caveat.
+
+```js
+var best = Number(localStorage.getItem("deathCounter_best")) || 0; // a key this widget also sets
+function onLiveVariableUpdate(name, value) {
+  if (name === "deaths" && Number(value) > best) {
+    best = Number(value);
+    localStorage.setItem("deathCounter_best", String(best));
+  }
+}
+```
 
 Known-good public endpoints (no key, CORS enabled):
 
@@ -172,9 +209,10 @@ Top-level import JSON fields:
 Omit `chatChannel` entirely: the host then follows the channel from the overlay's stream
 config automatically, which is what nearly every widget wants. Only set it (lowercase Twitch
 login, no `#`) when the user explicitly wants the widget watching a specific other channel,
-and say so in the reply's Notes. `chatEvents` picks which events get wired; omitting it means
-message-only, `[]` means none. Only request events the widget uses. The compiler injects the
-listeners; you only define the callbacks:
+and say so in the reply's Notes (a multi-streamer's second-platform override is set by the
+user in the integrations tab, see the platform rule below). `chatEvents` picks which events
+get wired; omitting it means message-only, `[]` means none. Only request events the widget
+uses. The compiler injects the listeners; you only define the callbacks:
 
 | Event key | Callback | Payload highlights |
 | --- | --- | --- |
@@ -207,8 +245,12 @@ function onTwitchMessage(data) {
 }
 ```
 
-Requires the overlay's streaming platform to be set to Twitch in Owner Settings; mention that
-in the reply when you use this integration.
+**Platform rule (Pogly 1.4.1+).** With `chatChannel` omitted the widget connects only when
+the overlay's streaming platform in Owner Settings is Twitch; on a Kick (or other) instance a
+Twitch integration with a blank channel never connects, while an explicit `chatChannel`
+always connects. Say in Notes which case applies. The widget IDE has a chat simulation view
+that fires sample Twitch and Kick events (including a broadcaster) at the preview, so users
+can test the handlers without going live; mention it for chat widgets.
 
 ### Kick chat (host-provided, same architecture as Twitch chat)
 
@@ -221,9 +263,11 @@ Top-level import JSON fields:
 
 Omit `kickChannel` entirely: the host then follows the channel from the overlay's stream
 config. Only set it (lowercase Kick channel slug, no `#`) when the user explicitly wants the
-widget watching a specific other channel, and say so in the reply's Notes. `kickEvents` picks
-which events get wired; omitting it means message-only, `[]` means none. Only request events
-the widget uses. The compiler injects the listeners; you only define the callbacks:
+widget watching a specific other channel, and say so in the reply's Notes. The same platform
+rule as Twitch applies: blank connects only on a Kick instance, an explicit `kickChannel`
+always connects. `kickEvents` picks which events get wired; omitting it means message-only,
+`[]` means none. Only request events the widget uses. The compiler injects the listeners; you
+only define the callbacks:
 
 | Event key | Callback | Payload highlights |
 | --- | --- | --- |
@@ -263,12 +307,15 @@ function onKickMessage(data) {
 }
 ```
 
-Requires the overlay's streaming platform to be set to Kick in Owner Settings; mention that in
-the reply. A widget may enable both `chatIntegration` and `kickIntegration`: only the one
-matching the configured platform receives events, so a works-on-either-platform widget defines
-both callback sets and shares the rendering code between them. The four role booleans have the
-same names on both platforms, so a shared handler can take `data` from either callback; just
-never gate on `isMod` alone.
+A widget may enable both `chatIntegration` and `kickIntegration`, and since Pogly 1.4.1 both
+connect at the same time: the instance's own platform with its channel blank, the other
+platform through its channel override. Two designs follow. A works-on-either-platform widget
+enables both, leaves both channels blank (whichever matches the instance connects) and shares
+one handler. A multi-streaming widget also needs the second platform's override, a
+user-specific value the import cannot know, so leave it blank and tell the user in Notes to
+set it in the widget's integrations tab. The four role booleans have the same names on both
+platforms, so a shared handler can take `data` from either callback; just never gate on
+`isMod` alone.
 
 ### Streamer.bot
 
@@ -328,8 +375,10 @@ generate a widget containing any of:
 - `window.open()`, `alert()`, `confirm()`, `prompt()` (dialogs freeze OBS browser sources).
 - Parent frame access: `window.parent`, `window.top`, `window.opener`, `document.domain`,
   `frameElement`.
-- Reading or writing `localStorage`/`sessionStorage`/cookies, or sending any viewer data,
-  token, or identifier anywhere.
+- Cookies; storage keys the widget does not itself write; enumerating or clearing storage
+  (`key()`, `length`, `Object.keys`, `for...in`, `JSON.stringify`, spread, `clear()`); sending
+  any stored value, viewer data, token, or identifier anywhere. (Own-key storage after the
+  user's explicit acknowledgement is the one storage use allowed, see Browser storage.)
 - Network requests to anything that is not a well-known public API or CDN; never to a custom
   or user-supplied server, never to a host built from a variable.
 - Automated downloads (`<a download>`, blob redirects).

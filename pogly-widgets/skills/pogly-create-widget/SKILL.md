@@ -19,7 +19,19 @@ Prefer sensible defaults over questions: pick dimensions, styling and behaviour 
 state the choices in the reply. Only ask when a wrong guess makes the widget useless (which
 of two contradictory behaviours they want). Missing user-specific values (a goal number, a
 label) are never a reason to ask: make them variables with placeholder defaults. Chat
-integration needs no channel at all; the host follows the overlay's configured channel.
+integration needs no channel for the instance's own platform (the host follows the overlay's
+stream config); a second platform's channel override is something the user sets in the
+widget's integrations tab, never something to ask for.
+
+Browser storage (`localStorage`/`sessionStorage`) is off by default: "remember", "persist" or
+"save" means a counter (10) or list (11) variable, which Pogly syncs to every client. Use
+storage only when the request itself explicitly acknowledges that stored state lives per
+browser (the overlay and each editor tab can show different values, so determinism breaks)
+and asks to proceed anyway. Then follow the authoring reference's storage rules (own literal
+keys only, never enumerate), set `"storageAcknowledged": true` in `meta.json` so the build
+accepts it, and restate the caveat in Notes. A persistence request without that
+acknowledgement gets the variable-based widget plus one sentence saying storage is available
+if they accept the caveat.
 
 ## Workflow
 
@@ -109,9 +121,12 @@ becomes the file path line instead, as described above>
 
 ## Notes
 
-<only what the user must know or do: set the streaming platform to Twitch (or Kick) in
-Owner Settings for chat integration, run Streamer.bot on the streaming PC, how often
-external data refreshes, which hotkeys are worth binding>
+<only what the user must know or do: chat connects on the platform set in Owner Settings,
+and a second platform needs its channel override set in the widget's integrations tab; the
+IDE's chat simulation can test the handlers without going live; run Streamer.bot on the
+streaming PC; how often external data refreshes; which hotkeys are worth binding; when
+storage was acknowledged, that stored values live per browser and can differ between the
+overlay and each editor>
 ````
 
 In the Live column always use one of: `yes, updates instantly` (live), `always live`
@@ -127,6 +142,7 @@ deliverable format.
 ## Refusals
 
 The authoring reference's security section lists the hard refusals (mining, eval, dialogs,
-frame escape, storage, exfiltration, arbitrary network destinations, obfuscation). Refuse
-those widget requests plainly and say which rule they hit; offer the closest safe
-alternative when one exists.
+frame escape, cookies, storage keys the widget does not write or any storage enumeration,
+exfiltration, arbitrary network destinations, obfuscation). Refuse those widget requests
+plainly and say which rule they hit; offer the closest safe alternative when one exists.
+Own-key storage after the user's explicit acknowledgement (see Inputs) is not a refusal.

@@ -9,7 +9,8 @@
 //              chatIntegration?, chatChannel?, chatEvents?,
 //              kickIntegration?, kickChannel?, kickEvents?,
 //              streamerBotIntegration?, streamerBotHost?, streamerBotPort?,
-//              streamerBotAuthEnabled?, streamerBotAuthKey? }
+//              streamerBotAuthEnabled?, streamerBotAuthKey?,
+//              storageAcknowledged? (build-only: the user acknowledged per-browser storage; stripped) }
 // Variable objects use the same properties as the export format (variableName, variableType, ...).
 //
 // Exit 0 on success (warnings allowed), 1 on errors. Fix errors and rerun; judge warnings.
@@ -57,6 +58,7 @@ const KNOWN_META = new Set([
   "kickIntegration", "kickChannel", "kickEvents",
   "streamerBotIntegration", "streamerBotHost", "streamerBotPort",
   "streamerBotAuthEnabled", "streamerBotAuthKey",
+  "storageAcknowledged",
 ]);
 for (const k of Object.keys(meta)) {
   if (!KNOWN_META.has(k)) warnings.push(`meta.json: unknown key "${k}" (typo?)`);
@@ -186,7 +188,6 @@ scan(/(?<![\w$.])(alert|confirm|prompt)\s*\(/, "dialogs (alert/confirm/prompt) f
 scan(/\bwindow\s*\.\s*(parent|top|opener)\b/, "parent frame access is a hard refusal");
 scan(/\bdocument\.domain\b|\bframeElement\b/, "frame isolation escape is a hard refusal");
 scan(/(?<![\w$.])window\.open\s*\(/, "window.open is a hard refusal");
-scan(/\b(localStorage|sessionStorage)\b/, "browser storage breaks determinism and is a security finding");
 scan(/\bdocument\.cookie\b/, "cookies break determinism and are a security finding");
 scan(/while\s*\(\s*(true|1)\s*\)|for\s*\(\s*;\s*;\s*\)/, "unbounded loop");
 scan(/\bdocument\.write\s*\(/, "document.write is a hard refusal");
@@ -194,6 +195,37 @@ scan(/<a\b[^>]*\bdownload\b/i, "download links are a hard refusal", ["body", "he
 scan(/addEventListener\s*\(\s*["'`]message["'`]/, "do not add your own message listener; the compiler injects one and calls onLiveVariableUpdate", ["script"]);
 scan(/\.(innerHTML|outerHTML)\s*[+]?=[^;\n]*\{[A-Za-z_]/, "variable value flows into innerHTML (unsanitised)", ["script"]);
 scan(/insertAdjacentHTML\s*\([^)]*\{[A-Za-z_]/, "variable value flows into insertAdjacentHTML (unsanitised)", ["script"]);
+
+// ---- browser storage (acknowledged use only) ----
+// The iframe is same-origin with the host app, so storage is the installer's storage (session
+// tokens, settings, other widgets' keys). Allowed only once the user acknowledged that stored
+// state lives per browser, and then only through get/set/removeItem on literal keys this widget
+// itself writes; anything that enumerates or wipes storage stays a hard refusal.
+const STORAGE_CODE = [script, header, body].filter((s) => /\b(?:localStorage|sessionStorage)\b/.test(s)).join("\n");
+if (STORAGE_CODE) {
+  if (meta.storageAcknowledged !== true) {
+    errors.push('browser storage used without "storageAcknowledged": true in meta.json; set it only when the user explicitly acknowledged that stored state lives per browser (breaks determinism) and asked to proceed, otherwise persist with a counter (10) or list (11) variable');
+  } else {
+    const HOST_KEY = /^(?:stdb|oidc\.|pogly|widgetIDE|settings$|streamPreviewSettings$|TenorAPIKey$|twitchIdToken$|debuglogger$|layoutCollapsed$|layersCollapsed$|Accept_)/i;
+    const calls = [...STORAGE_CODE.matchAll(/\b(?:localStorage|sessionStorage)\s*\.\s*(getItem|setItem|removeItem)\s*\(\s*(["'`])([^"'`]*)\2/g)].map((m) => ({ op: m[1], key: m[3] }));
+    const setKeys = new Set(calls.filter((c) => c.op === "setItem").map((c) => c.key));
+    for (const key of new Set(calls.map((c) => c.key))) {
+      if (key.includes("${")) errors.push(`storage key \`${key}\` is built at runtime; keys must be plain string literals so ownership can be checked`);
+      else if (HOST_KEY.test(key)) errors.push(`storage key "${key}" looks like one of the host app's own keys; prefix keys with the widget name`);
+      else if (!setKeys.has(key)) errors.push(`storage key "${key}" is read or removed but never written by this widget; only keys the widget itself sets may be touched`);
+    }
+    if (/\b(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|setItem|removeItem)\s*\(\s*(?!["'`])/.test(STORAGE_CODE)) {
+      errors.push("storage keys must be string literals so ownership can be checked");
+    }
+    if (
+      /\b(?:localStorage|sessionStorage)\s*(?:\.\s*(?!getItem\b|setItem\b|removeItem\b)[\w$]+|\[)/.test(STORAGE_CODE) ||
+      /(?:Object\.\w+|JSON\.stringify)\s*\(\s*(?:localStorage|sessionStorage)\b|\bin\s+(?:localStorage|sessionStorage)\b|\.\.\.\s*(?:localStorage|sessionStorage)\b/.test(STORAGE_CODE)
+    ) {
+      errors.push("storage may only be used through getItem/setItem/removeItem with literal keys; key(), length, clear(), property or bracket access, Object.keys, for...in, JSON.stringify and spread enumerate or wipe the host's storage");
+    }
+    notes.push("storage acknowledged: stored values live per browser (the overlay and each editor can differ); restate that caveat in the reply's Notes");
+  }
+}
 
 // The broadcaster is never a mod on either platform (no mod tag / no moderator badge), so a
 // widget gating controls on isMod alone silently ignores the streamer's own commands.
@@ -286,7 +318,7 @@ for (const p of CHAT_PLATFORMS) {
       if (typeof meta[p.channelKey] !== "string" || meta[p.channelKey] !== meta[p.channelKey].toLowerCase() || meta[p.channelKey].startsWith("#")) {
         errors.push(`${p.channelKey} must be ${p.channelRule}`);
       } else {
-        warnings.push(`${p.channelKey} "${meta[p.channelKey]}" pins the widget to that specific channel; omit it to follow the overlay's configured channel`);
+        warnings.push(`${p.channelKey} "${meta[p.channelKey]}" pins the widget to that specific channel; omit it to follow the overlay's configured channel (a multi-streamer sets the second platform's override in the integrations tab themselves)`);
       }
     }
     const events = meta[p.eventsKey] === undefined ? ["message"] : meta[p.eventsKey];
