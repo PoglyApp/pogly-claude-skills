@@ -240,7 +240,7 @@ if (/Math\.random\s*\(/.test(script)) {
 }
 
 // network destinations
-const ALLOWED_WS = ["wss://irc-ws.chat.twitch.tv", "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679"];
+const ALLOWED_WS = ["wss://irc-ws.chat.twitch.tv", "wss://ws-us2.pusher.com/app/34bf7a0ff419a2a775b9"];
 for (const m of script.matchAll(/new\s+WebSocket\s*\(\s*(["'`])([^"'`]*)\1/g)) {
   const url = m[2];
   if (!ALLOWED_WS.some((a) => url.startsWith(a))) errors.push(`script: WebSocket to "${url}" is not an allowed public chat API`);
